@@ -362,6 +362,30 @@ async function sendMail(subject, html) {
     }
 }
 
+async function ensureBootstrapAdmin() {
+    const adminUser = sanitizeString(process.env.BOOTSTRAP_ADMIN_USERNAME || '', 100);
+    const adminPass = process.env.BOOTSTRAP_ADMIN_PASSWORD || '';
+    if (!adminUser || !adminPass) return;
+
+    const data = await getData();
+    if ((data.users || []).length > 0) return;
+
+    data.users.push({
+        id: Date.now(),
+        username: adminUser,
+        password: hashPassword(adminPass),
+        role: 'superadmin',
+        permissions: {
+            canAdd: true,
+            canUpdate: true,
+            canViewHistory: true,
+        }
+    });
+    logAudit(data, 'BOOTSTRAP_ADMIN', 'system', adminUser);
+    await saveData(data);
+    console.log('✅ Bootstrap superadmin created from environment variables.');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  RATE LIMITING
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1062,6 +1086,7 @@ async function start() {
     if (USE_MONGO) {
         await connectDB();
     }
+    await ensureBootstrapAdmin();
     app.listen(PORT, () => console.log(`✅ Server running at http://localhost:${PORT}`));
 }
 
