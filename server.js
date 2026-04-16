@@ -12,6 +12,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
 const USE_MONGO = !!process.env.MONGODB_URI;
+const COOKIE_SAME_SITE = (process.env.COOKIE_SAME_SITE || 'lax').toLowerCase();
+const SESSION_SAME_SITE = ['strict', 'lax', 'none'].includes(COOKIE_SAME_SITE)
+    ? COOKIE_SAME_SITE
+    : 'lax';
 
 // Local-only paths (ignored in production with Mongo)
 const DATA_FILE = 'data.json';
@@ -246,13 +250,18 @@ app.use((req, res, next) => {
     express.json({ limit: '1mb' })(req, res, next);
 });
 app.use(express.static(__dirname));
+if (IS_PROD) {
+    // Required behind Render/Vercel reverse proxies so secure cookies work.
+    app.set('trust proxy', 1);
+}
 app.use(session({
     secret: SESSION_SECRET,
+    proxy: IS_PROD,
     resave: false,
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
-        sameSite: 'strict',
+        sameSite: SESSION_SAME_SITE,
         maxAge: 8 * 60 * 60 * 1000,
         secure: IS_PROD, // HTTPS-only cookies in production
     }
